@@ -1,0 +1,28 @@
+{
+  "fetched_at": "2026-07-22T15:22:33+08:00",
+  "policy": "Pinned upstream snapshots are reference code only. Review the selected snippet before execution.",
+  "sources": [
+    {
+      "name": "a-stock-data",
+      "version": "3.4.0",
+      "repository": "https://github.com/simonlin1212/a-stock-data",
+      "commit": "9ed665cc9773457bc23fed6b770b2b5a8cede40f",
+      "license": "Apache-2.0",
+      "skill_path": "upstream/a-stock-data.SKILL.md",
+      "skill_sha256": "a1cd1220f7ea1c57bb508dba78f1bfe9d9f92bed7a5e1f32f43afea41543c3de",
+      "license_path": "upstream/a-stock-data.LICENSE",
+      "license_sha256": "199bab40163ad21135c2c4d5db43bffdadb14ed80762b048f04931cc48700bbf"
+    },
+    {
+      "name": "global-stock-data",
+      "version": "1.0.1",
+      "repository": "https://github.com/simonlin1212/global-stock-data",
+      "commit": "d52a8a0013363577bceb28ca876c88fe6c1a5aeb",
+      "license": "Apache-2.0",
+      "skill_path": "upstream/global-stock-data.SKILL.md",
+      "skill_sha256": "39005851f179f74d970caccfb775bcffb9dd64d2ccedacca5c611fc4ebf101a8",
+      "license_path": "upstream/global-stock-data.LICENSE",
+      "license_sha256": "199bab40163ad21135c2c4d5db43bffdadb14ed80762b048f04931cc48700bbf"
+    }
+  ]
+}

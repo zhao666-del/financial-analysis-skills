@@ -1,0 +1,14 @@
+{# Metric Grid Component — 指标卡片网格
+   Usage: {% with items=[{label:'PE', value:'45.2', color:''}, ...] %}
+          {% include "components/metric_grid.html" %}
+          {% endwith %}
+   cols: 3|4|5 (default 4)
+#}
+<div class="metric-grid cols-{{ cols|default(4) }}">
+{% for item in items %}
+  <div class="metric-item">
+    <div class="label">{{ item.label }}</div>
+    <div class="value {{ item.color|default('') }}">{{ item.value|default('--') }}</div>
+  </div>
+{% endfor %}
+</div>

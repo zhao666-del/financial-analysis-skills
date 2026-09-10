@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block title %}概念深度选股 — {{ now.strftime('%Y-%m-%d') if now else '' }}{% endblock %}
+{% block body %}
+
+{# ===== Helpers ===== #}
+{% macro pct_color(v) %}{% if v is not none and v > 0 %}up{% elif v is not none and v < 0 %}down{% else %}flat{% endif %}{% endmacro %}
+{% macro fmt_pct(v) %}{% if v is not none %}{{ '%+.2f'|format(v) }}%{% else %}--{% endif %}{% endmacro %}
+{% macro fmt_pct1(v) %}{% if v is not none %}{{ '%+.1f'|format(v) }}%{% else %}--{% endif %}{% endmacro %}
+
+{% set concepts = data.get('concepts', []) %}
+
+{# ===== HEADER ===== #}
+<div class="header">
+  <h1>🎯 概念深度选股</h1>
+  <div class="subtitle">{{ now.strftime('%Y-%m-%d %H:%M') if now else '' }} · 按投资价值评分排序</div>
+</div>
+
+{# ===== SCORE RANKING ===== #}
+{% if concepts %}
+<div class="section">
+  <div class="section-title"><span class="icon">🏆</span> 评分排行</div>
+  <div style="padding:0 4px 8px;">
+    {% for c in concepts %}
+    {% set score = c.deep.score|default({}) %}
+    {% set score_val = score.total|default(0) %}
+    <div style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid var(--card-border);">
+      <span style="width:20px;font-size:12px;font-weight:700;color:var(--text-muted);">{{ loop.index }}</span>
+      <span style="flex:1;font-size:14px;font-weight:600;">{{ c.name }}</span>
+      <span class="{{ pct_color(c.change_pct) }}" style="font-size:13px;margin-right:10px;">{{ fmt_pct1(c.change_pct) }}</span>
+      <span style="font-size:15px;font-weight:700;color:{% if score_val >= 70 %}var(--green){% elif score_val >= 50 %}var(--accent){% elif score_val >= 30 %}var(--yellow){% else %}var(--red){% endif %};min-width:45px;text-align:right;">{{ score_val }}分</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ===== CONCEPT CARDS ===== #}
+{% for concept in concepts %}
+{% set trend = concept.trend|default({}) %}
+{% set deep = concept.deep|default({}) %}
+{% set score = deep.score|default({}) %}
+{% set dist = deep.distribution|default({}) %}
+{% set mom = deep.momentum|default({}) %}
+{% set rep = deep.representativeness|default({}) %}
+{% set lu = deep.limit_up|default({}) %}
+{% set vol = deep.volume_signal|default({}) %}
+{% set status = trend.status|default('unknown') %}
+{% set score_val = score.total|default(0) %}
+
+<div class="section">
+  {# --- Title + Score --- #}
+  <div style="padding:14px 16px 10px;display:flex;align-items:center;">
+    <span style="background:{% if score_val >= 70 %}var(--green){% elif score_val >= 50 %}var(--accent){% elif score_val >= 30 %}var(--yellow){% else %}var(--red){% endif %};color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;">{{ loop.index }}</span>
+    <div style="flex:1;margin-left:10px;">
+      <div style="font-size:16px;font-weight:700;">{{ concept.name }}</div>
+      <div style="font-size:11px;color:var(--text-secondary);">{{ score.label|default('--') }} · 龙头: {{ concept.leader }}</div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:22px;font-weight:700;color:{% if score_val >= 70 %}var(--green){% elif score_val >= 50 %}var(--accent){% elif score_val >= 30 %}var(--yellow){% else %}var(--red){% endif %};">{{ score_val }}</div>
+      <div class="{{ pct_color(concept.change_pct) }}" style="font-size:13px;font-weight:600;">{{ fmt_pct(concept.change_pct) }}</div>
+    </div>
+  </div>
+
+  {# --- Score Breakdown --- #}
+  {% set details = score.details|default({}) %}
+  {% if details %}
+  <div class="metric-grid cols-4">
+    <div class="metric-item">
+      <div class="label">赚钱效应</div>
+      <div class="value" style="font-size:13px;">{{ details.profit|default(0) }}/30</div>
+    </div>
+    <div class="metric-item">
+      <div class="label">介入时机</div>
+      <div class="value" style="font-size:13px;">{{ details.timing|default(0) }}/25</div>
+    </div>
+    <div class="metric-item">
+      <div class="label">资金强度</div>
+      <div class="value" style="font-size:13px;">{{ details.strength|default(0) }}/25</div>
+    </div>
+    <div class="metric-item">
+      <div class="label">板块宽度</div>
+      <div class="value" style="font-size:13px;">{{ details.breadth|default(0) }}/20</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# --- Trend Badge --- #}
+  {% if status != 'unknown' %}
+  <div style="padding:6px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--card-border);">
+    {% set status_map = {'breakout':('🚀 金叉启动','positive'),'strong':('🔥 主升浪','positive'),'rising':('📈 上升期','info'),'weak_rise':('↗️ 弱上升','info'),'weak':('↔️ 震荡','warning'),'falling':('📉 下跌','negative')} %}
+    {% set s = status_map.get(status, (status, 'warning')) %}
+    <span class="signal-badge {{ s[1] }}" style="margin:0;">{{ s[0] }}</span>
+    <span style="font-size:12px;color:var(--text-secondary);">{{ trend.reason|default('') }}</span>
+  </div>
+  {% endif %}
+
+  {# --- Distribution Bar --- #}
+  {% if dist.total %}
+  <div style="padding:10px 16px;border-top:1px solid var(--card-border);">
+    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">📊 涨幅分布 (采样{{ rep.sample_count|default(100) }}只 · 成交{{ rep.top100_amount_yi|default(0) }}亿)</div>
+    {% set total = dist.total %}
+    {% set w7 = (dist.above_7 / total * 100)|round(1) %}
+    {% set w37 = (dist.between_3_7 / total * 100)|round(1) %}
+    {% set w03 = (dist.between_0_3 / total * 100)|round(1) %}
+    {% set wdn = (dist.below_0 / total * 100)|round(1) %}
+    <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;">
+      {% if w7 > 0 %}<div style="width:{{ w7 }}%;background:#00c853;" title=">7%"></div>{% endif %}
+      {% if w37 > 0 %}<div style="width:{{ w37 }}%;background:#69f0ae;" title="3-7%"></div>{% endif %}
+      {% if w03 > 0 %}<div style="width:{{ w03 }}%;background:#ffcc02;" title="0-3%"></div>{% endif %}
+      {% if wdn > 0 %}<div style="width:{{ wdn }}%;background:#ff5252;" title="<0%"></div>{% endif %}
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:4px;">
+      <span style="color:#00c853;">>7% {{ dist.above_7 }}只</span>
+      <span style="color:#69f0ae;">3~7% {{ dist.between_3_7 }}只</span>
+      <span style="color:#ffcc02;">0~3% {{ dist.between_0_3 }}只</span>
+      <span style="color:#ff5252;">跌 {{ dist.below_0 }}只</span>
+    </div>
+  </div>
+  {% endif %}
+
+  {# --- Momentum --- #}
+  {% if mom.consecutive_3plus is defined %}
+  <div style="padding:10px 16px;border-top:1px solid var(--card-border);">
+    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">⏱ 持续性分布</div>
+    <div class="metric-grid cols-5">
+      <div class="metric-item">
+        <div class="label">连涨3天+</div>
+        <div class="value warn" style="font-size:15px;">{{ mom.consecutive_3plus }}</div>
+      </div>
+      <div class="metric-item">
+        <div class="label">连涨2天</div>
+        <div class="value" style="font-size:15px;color:var(--accent);">{{ mom.consecutive_2 }}</div>
+      </div>
+      <div class="metric-item">
+        <div class="label">刚启动</div>
+        <div class="value up" style="font-size:15px;">{{ mom.just_started }}</div>
+      </div>
+      <div class="metric-item">
+        <div class="label">震荡/平盘</div>
+        <div class="value" style="font-size:15px;color:var(--text-secondary);">{{ mom.flat_or_other|default(0) }}</div>
+      </div>
+      <div class="metric-item">
+        <div class="label">下跌</div>
+        <div class="value down" style="font-size:15px;">{{ mom.falling }}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# --- Key Signals --- #}
+  <div style="padding:8px 16px;display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--card-border);">
+    {% if lu.count %}
+    <span class="signal-badge positive" style="margin:0;">💥 涨停{{ lu.count }}只</span>
+    {% if lu.consecutive_boards %}
+    <span class="signal-badge positive" style="margin:0;">🔗 连板{{ lu.consecutive_boards|length }}只</span>
+    {% endif %}
+    {% endif %}
+    {% if vol.above_avg_count %}
+    <span class="signal-badge info" style="margin:0;">📊 放量{{ vol.above_avg_count }}只({{ vol.ratio }}%)</span>
+    {% endif %}
+  </div>
+
+  {# --- Strong Stocks (连涨3天+) --- #}
+  {% set strong = deep.strong_stocks|default([]) %}
+  {% if strong %}
+  <div style="padding:10px 16px;border-top:1px solid var(--card-border);">
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">🔥 连涨强势股</div>
+    <table class="data-table" style="font-size:12px;">
+      <tr style="color:var(--text-muted);font-size:11px;">
+        <td>股票</td>
+        <td style="text-align:right;">今日</td>
+        <td style="text-align:right;">连涨</td>
+        <td style="text-align:right;">量比</td>
+        <td style="text-align:right;">成交(亿)</td>
+      </tr>
+      {% for s in strong %}
+      <tr>
+        <td>
+          <div style="font-weight:500;">{{ s.name }}</div>
+          <div style="font-size:10px;color:var(--text-muted);">{{ s.symbol }}</div>
+        </td>
+        <td style="text-align:right;" class="{{ pct_color(s.pct) }}">{{ fmt_pct1(s.pct) }}</td>
+        <td style="text-align:right;color:var(--yellow);font-weight:600;">{{ s.consecutive_days }}天</td>
+        <td style="text-align:right;">{{ s.vol_ratio }}</td>
+        <td style="text-align:right;">{{ s.amount_yi }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
+  {# --- Breakout Stocks (涨>5%且刚启动) --- #}
+  {% set breakout = deep.breakout_stocks|default([]) %}
+  {% if breakout %}
+  <div style="padding:10px 16px;border-top:1px solid var(--card-border);">
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">🚀 突破启动股 (涨>5% · 首日启动)</div>
+    <table class="data-table" style="font-size:12px;">
+      <tr style="color:var(--text-muted);font-size:11px;">
+        <td>股票</td>
+        <td style="text-align:right;">涨幅</td>
+        <td style="text-align:right;">换手</td>
+        <td style="text-align:right;">量比</td>
+        <td style="text-align:right;">成交(亿)</td>
+      </tr>
+      {% for s in breakout %}
+      <tr>
+        <td>
+          <div style="font-weight:500;">{{ s.name }}</div>
+          <div style="font-size:10px;color:var(--text-muted);">{{ s.symbol }}</div>
+        </td>
+        <td style="text-align:right;" class="{{ pct_color(s.pct) }}">{{ fmt_pct1(s.pct) }}</td>
+        <td style="text-align:right;">{{ '%.1f'|format(s.turnover) }}%</td>
+        <td style="text-align:right;">{{ s.vol_ratio }}</td>
+        <td style="text-align:right;">{{ s.amount_yi }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
+  {# --- News --- #}
+  {% if concept.news %}
+  <div style="padding:10px 16px 12px;border-top:1px solid var(--card-border);">
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">📰 催化新闻</div>
+    {% for n in concept.news[:3] %}
+    <div class="list-item">
+      <div class="item-title">{{ n.title }}</div>
+      {% if n.summary %}
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:3px;line-height:1.5;">{{ n.summary[:100] }}{% if n.summary|length > 100 %}...{% endif %}</div>
+      {% endif %}
+      <div class="item-meta">{{ n.media|default('') }} · {{ (n.date|default(''))[:10] }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+
+{# ===== FOOTER ===== #}
+<div class="footer">
+  Stock Analysis Pro · 概念深度选股<br>
+  评分维度: 赚钱效应(30) + 介入时机(25) + 资金强度(25) + 板块宽度(20)<br>
+  数据仅供参考，不构成投资建议
+</div>
+{% endblock %}

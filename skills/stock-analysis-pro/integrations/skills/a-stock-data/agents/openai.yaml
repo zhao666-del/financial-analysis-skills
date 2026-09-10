@@ -1,0 +1,6 @@
+interface:
+  display_name: "A股数据采集"
+  short_description: "按来源和日期获取A股行情、财务、公告、资金流与交易结构数据"
+  default_prompt: "Use $a-stock-data to fetch current A-share data with source and date provenance."
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,25 @@
+{# Score Gauge Component — SVG 圆弧评分仪表盘
+   Usage: {% with score=82, max_score=100, rating='增持' %}
+          {% include "components/score_gauge.html" %}
+          {% endwith %}
+#}
+<div class="gauge-wrap">
+  <svg width="140" height="85" viewBox="0 0 140 85">
+    {# Background arc #}
+    <path d="M 15 75 A 55 55 0 0 1 125 75" fill="none" stroke="#21262d" stroke-width="10" stroke-linecap="round"/>
+    {# Score arc — percentage mapped to arc #}
+    {% set pct = (score / max_score * 100) if max_score else 0 %}
+    {% set angle = pct / 100 * 180 %}
+    {% set rad = angle * 3.14159 / 180 %}
+    {% set x = 70 - 55 * 3.14159|float %}
+    {# Simplified: use stroke-dasharray for arc fill #}
+    <path d="M 15 75 A 55 55 0 0 1 125 75" fill="none"
+      stroke="{% if pct >= 60 %}#3fb950{% elif pct >= 40 %}#d29922{% else %}#f85149{% endif %}"
+      stroke-width="10" stroke-linecap="round"
+      stroke-dasharray="{{ pct * 1.73 }} 173" />
+  </svg>
+  <div class="gauge-score" style="color: {% if pct >= 60 %}var(--green){% elif pct >= 40 %}var(--yellow){% else %}var(--red){% endif %}">
+    {{ score }}
+  </div>
+  <div class="gauge-label">综合评分 · {{ rating|default('--') }}</div>
+</div>

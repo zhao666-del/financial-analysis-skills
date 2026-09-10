@@ -1,0 +1,67 @@
+{
+  "research_id": "company_20260724_example",
+  "research_type": "company",
+  "subject": "示例公司",
+  "as_of_date": "2026-07-24",
+  "depth_profile": "standard",
+  "max_depth": 2,
+  "max_parallel_branches": 6,
+  "source_budget": 40,
+  "iteration_budget": 3,
+  "reading_thresholds": {
+    "minimum_effective_read": 20,
+    "minimum_deep_read": 8,
+    "minimum_primary_ratio": 0.55,
+    "minimum_independent_ratio": 0.4,
+    "minimum_locator_ratio": 0.85
+  },
+  "status": "planning",
+  "report_label": "研究草案",
+  "confidence_cap": "低",
+  "coverage_matrix": [
+    {
+      "category": "annual_reports",
+      "required": true,
+      "applicable": true,
+      "waiver_reason": "",
+      "minimum_effective_read": 3,
+      "minimum_deep_read": 2,
+      "minimum_primary_ratio": 1.0,
+      "minimum_independent_ratio": 0.0,
+      "freshness_days": null,
+      "effective_read_count": 0,
+      "deep_read_count": 0,
+      "primary_effective_count": 0,
+      "independent_effective_count": 0,
+      "coverage_status": "missing"
+    }
+  ],
+  "branches": [],
+  "research_rounds": [],
+  "coverage_gaps": [],
+  "contradictions": [],
+  "blocked_reason": "",
+  "stop_conditions": {
+    "required_coverage_complete": false,
+    "effective_reading_complete": false,
+    "source_quality_complete": false,
+    "material_claims_supported": false,
+    "counterevidence_searched": false,
+    "conflicts_resolved_or_disclosed": false,
+    "citation_traceable": false,
+    "marginal_information_gain_low": false
+  },
+  "statistics": {
+    "sources_discovered": 0,
+    "sources_opened_or_skimmed": 0,
+    "effective_read_count": 0,
+    "deep_read_count": 0,
+    "sources_cited": 0,
+    "duplicate_sources": 0,
+    "primary_effective_count": 0,
+    "independent_effective_count": 0,
+    "primary_ratio": 0.0,
+    "independent_ratio": 0.0,
+    "locator_completeness": 0.0
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "metadata": {
+    "fund_code": "",
+    "fund_name": "",
+    "share_class": "",
+    "research_status": "研究草案",
+    "as_of_date": "",
+    "calculation_version": ""
+  },
+  "source_coverage": {
+    "annual_reports": 0,
+    "quarterly_reports": 0,
+    "legal_documents": 0,
+    "independent_method_sources": 0,
+    "fund_contract_current": false,
+    "benchmark_method_current": false,
+    "missing_items": []
+  },
+  "identity": {
+    "category": "",
+    "benchmark_contract": "",
+    "benchmark_research": "",
+    "manager_regimes": [],
+    "fee_basis": {}
+  },
+  "alpha_attribution": {
+    "major_alpha_sources_distinguished": false,
+    "benchmark_relative": {},
+    "factor": {},
+    "special_returns": {},
+    "manager_or_model_regimes": {},
+    "explained_excess_ratio": null,
+    "unexplained_residual": null,
+    "limitations": []
+  },
+  "statistical_diagnostics": {
+    "newey_west": {},
+    "bootstrap": {},
+    "rolling_36m_alpha": {},
+    "rolling_60m_information_ratio": {},
+    "non_overlapping_3y": [],
+    "market_regimes": {}
+  },
+  "due_diligence": {
+    "team_governance_assessed": false,
+    "model_or_process_governance_assessed": false,
+    "people": {},
+    "process": {},
+    "parent": {},
+    "operational_due_diligence": {},
+    "rfi_open_items": []
+  },
+  "holdings_and_risk": {
+    "active_share": null,
+    "top_active_overweights": [],
+    "top_active_underweights": [],
+    "factor_exposure": {},
+    "active_risk_contribution": {},
+    "active_drawdown": {},
+    "tail_risk": {}
+  },
+  "capacity": {
+    "quantified": false,
+    "days_to_liquidate": {},
+    "impact_cost": {},
+    "redemption_stress": {},
+    "strategy_total_aum": null,
+    "limitations": []
+  },
+  "peer_universe": {
+    "definition": "",
+    "sample_size": 0,
+    "share_classes_deduplicated": false,
+    "same_end_date_and_return_basis": false,
+    "passive_alternatives_included": false,
+    "dead_or_transformed_funds_considered": false,
+    "percentiles": {},
+    "exclusions": []
+  },
+  "claims": [
+    {
+      "claim_id": "",
+      "question": "",
+      "claim": "",
+      "facts": [],
+      "calculations": [],
+      "evidence_for": [],
+      "evidence_against": [],
+      "alternative_explanations": [],
+      "source_quality": "低",
+      "source_independence": "低",
+      "confidence": "低",
+      "missing_evidence": [],
+      "monitoring_metrics": [],
+      "invalidation_conditions": []
+    }
+  ],
+  "red_team": {
+    "completed": false,
+    "strongest_rejection_arguments": [],
+    "responses": [],
+    "unresolved_objections": []
+  },
+  "decision": {
+    "asset_layer": {},
+    "product_layer": {},
+    "portfolio_layer": {},
+    "admission_status": "无法评价",
+    "confidence": "低",
+    "rating_range": null,
+    "monitoring": [],
+    "suspension_triggers": [],
+    "exit_triggers": []
+  }
+}

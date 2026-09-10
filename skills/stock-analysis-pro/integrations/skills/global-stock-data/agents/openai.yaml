@@ -1,0 +1,6 @@
+interface:
+  display_name: "港美股数据采集"
+  short_description: "按来源和日期获取港美股行情、财务、期权、监管文件与机构持仓数据"
+  default_prompt: "Use $global-stock-data to fetch current US or Hong Kong market data with source provenance."
+policy:
+  allow_implicit_invocation: true

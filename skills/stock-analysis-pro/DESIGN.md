@@ -1,0 +1,405 @@
+# Stock Analysis Pro — 设计文档
+
+> v2.0 | 2026-07-14
+> Repo: https://github.com/bobby1129/stock-analysis-pro
+
+---
+
+## 1. 项目定位
+
+**Stock Analysis Pro** 是一个完整的 A 股多维分析工具，作为 Hermes Agent 的 skill 使用。
+
+三大核心能力：
+1. **个股全维度分析** — 技术面/基本面/估值面/资金面/舆情面 → 综合评分
+2. **概念板块扫描** — 热板排行/趋势定性/新闻归因/机会筛选
+3. **宏观市场概览** — 国际宏观/国内宏观/事件驱动/综合研判
+
+与 `/home/cat/stock_review/` 是独立项目，功能有重叠但互不依赖。`stock_review` 是每日复盘 Cron Job，本项目是按需调用的分析 skill。
+
+---
+
+## 2. 架构
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    CLI (core/cli.py)                     │
+│     analyze | concept | market | add | rm | list        │
+├─────────────────────────────────────────────────────────┤
+│                  Plans (编排层)                           │
+│  stock_analysis.py  |  concept_analysis.py  |  daily_review.py │
+├────────────────────────┬────────────────────────────────┤
+│   Analysis (维度层)     │   Collectors (采集层)           │
+│   technical.py         │   quote.py (行情/K线)           │
+│   fundamental.py       │   finance.py (财务/分红/预测)   │
+│   valuation.py         │   flow.py (成交额/北向)         │
+│   capital.py           │   info.py (公司F10)             │
+│   sentiment.py         │   sentiment.py (股吧+互动易+新闻+评级) │
+│   company.py           │   em_concept.py (概念采集v6)    │
+│   scorer.py (综合评分)  │   em_browser.py (共享Playwright) │
+│   concept.py (概念分析)  │   concept.py (旧版,已废弃)      │
+│   concept_rank.py       │   macro.py (宏观数据)          │
+│   macro.py             │   cache.py (缓存)              │
+├────────────────────────┼────────────────────────────────┤
+│   Templates (HTML报告)  │   Config (配置管理)            │
+│   base.html            │   config/__init__.py           │
+│   stock_report.html    │   config/config.yaml           │
+│   concept_report.html  │   config/config.example.yaml   │
+│   market_report.html   │                                │
+│   6 组件模板           │                                │
+└────────────────────────┴────────────────────────────────┘
+```
+
+### 数据流
+
+```
+CLI command
+  → Plan (编排: 按顺序调用多个 Analysis)
+    → Analysis (维度计算: 调用 Collector 获取原始数据, 计算指标/信号)
+      → Collector (数据采集: HTTP/Playwright 获取数据, 返回结构化数据)
+```
+
+---
+
+## 3. 模块清单
+
+### 3.1 Collectors (采集层)
+
+| 模块 | 行数 | 数据源 | 功能 | 状态 |
+|------|------|--------|------|------|
+| `quote.py` | 190 | 腾讯(qt.gtimg.cn) + 新浪(money.finance) | 实时行情(价格/PE/PB/市值/换手率) + 历史K线(250日OHLCV) | ✅ |
+| `finance.py` | 105 | akshare (THS财务摘要) | ROE/毛利率/净利率/负债率/营收增速/净利增速/EPS/每股净资产/经营现金流/分红历史/机构盈利预测 | ✅ |
+| `flow.py` | 156 | 腾讯行情(推算) + akshare(北向) | 成交额统计(当日/20日高低中位/量比) + 北向持股(持股比例/趋势) | ✅ |
+| `info.py` | 56 | 东财F10 + 同花顺(akshare) | 公司全称/行业/实控人/法人/主营业务/产品类型/公司简介 | ✅ |
+| `sentiment.py` | 280 | 东财股吧+互动易+新闻搜索+分析师评级 | 股吧热帖 + 互动易问答 + 东财新闻 + 分析师评级(reportapi) | ✅ |
+| `em_concept.py` | 770 | 东财行情页(Playwright页面导航拦截) | 概念列表(按资金流入排序) + 成分股(按涨幅,前100只) + 离线增量缓存 | ✅ |
+| `em_browser.py` | 376 | Playwright Chromium | 共享浏览器会话(F10/股吧/搜索/研报)，避免重复启动浏览器 | ✅ |
+| `concept.py` | 215 | 新浪(newFLJK/getHQNodeData) | 旧版概念采集(已废弃，保留备用) | ⚠️ 废弃 |
+| `macro.py` | 354 | akshare + 东财 | global_macro(美债/利率/金银油) + domestic_macro(CPI/PMI/M2/LPR) + zt_pool(涨停复盘) | ✅ |
+| `cache.py` | 40 | 本地JSON文件 | TTL缓存(默认1小时)，减少重复请求 | ✅ |
+
+**em_concept.py 核心逻辑 (v6)**:
+- **采集方式**: Playwright页面导航拦截 — 访问东财行情页，拦截XHR响应获取数据
+- **概念排序**: 按资金流入(f62)排序，过滤非行业概念（风格/市值/地域类），保留top_n个
+- **成分股获取**: 详情页滚动触发懒加载，按涨幅(f3)排序获取前100只
+- **离线兜底**: 在线失败时从`data/concept_cache.json`读取，离线缓存随使用逐次积累
+- **性能优化**: 只对过滤后的top10概念拉成分股，其余60个用API涨跌家数填充
+
+**sentiment.py 数据源**:
+- **股吧热帖**: `guba.eastmoney.com` HTML解析
+- **互动易问答**: `guba.eastmoney.com/qa/qa_search.aspx` Direct请求
+- **新闻搜索**: `search-api-web.eastmoney.com` JSONP格式
+- **分析师评级**: `reportapi.eastmoney.com` JSON格式
+
+### 3.2 Analysis (维度层)
+
+| 模块 | 行数 | 输入 | 输出 | 状态 |
+|------|------|------|------|------|
+| `technical.py` | 265 | K线数据 + 实时行情 | MA(5/10/20/60/120/250), MACD(金叉/死叉), KDJ, RSI(6/12/24), BOLL, 量比, 换手率分级, 价格分位(60d/250d), 支撑/压力位, 信号/警告列表 | ✅ |
+| `fundamental.py` | 74 | 财务指标 + 分红 + 预测 | 盈利能力/财务健康/成长性/分红/一致预期, 信号/警告列表 | ✅ |
+| `valuation.py` | 44 | 实时行情 | PE/PB/市值/换手率, 估值信号(低估/高估/高换手) | ✅ |
+| `capital.py` | 17 | flow.py | 成交额统计 + 北向持股 (thin wrapper) | ✅ |
+| `sentiment.py` | 80 | 股吧+互动易+新闻+评级 | 关键词情绪评分 → bullish/bearish/neutral + 帖子计数 + 互动易Q&A + 评级统计 | ✅ |
+| `company.py` | 82 | info.py | 公司概况(行业/主营/产品/简介/实控人/法人/注册资本/员工数) | ✅ |
+| `scorer.py` | 404 | 技术/基本面/资金/舆情/行情/估值 | 四维评分(各±25), 总分±100, 7级评级(强看多→强看空), 综合信号/警告 | ✅ |
+| `concept.py` | 418 | 概念排行 + 成分股(100只) + 新闻 | 趋势定性(breakout/strong/rising/falling/neutral), 涨跌分布, 领涨股, 新闻归因, 综合评分(100分制) | ✅ |
+| `concept_rank.py` | 259 | em_concept.py | 概念排名(资金流入排序+过滤非行业+top_n), 离线兜底 | ✅ |
+| `macro.py` | 351 | macro.py (collectors) | analyze_global(环境定性) + analyze_domestic(经济周期/流动性) + analyze_event(市场情绪) + synthesize(综合研判) | ✅ |
+
+### 3.3 Plans (编排层)
+
+| 模块 | 行数 | 编排流程 | 状态 |
+|------|------|----------|------|
+| `stock_analysis.py` | 152 | 行情→公司概况→技术面→基本面→资金面→舆情面→估值→综合评分 | ✅ |
+| `concept_analysis.py` | 332 | 概念排行→趋势定性(100只成分股)→新闻归因→机会筛选(涨跌分布+综合评分), 含地域过滤+龙头去重 | ✅ |
+| `daily_review.py` | 191 | 宏观市场概览: 国际宏观→国内宏观→事件驱动→综合研判→HTML/文本输出 | ✅ |
+
+### 3.4 CLI (core/cli.py)
+
+| 命令 | 功能 | 状态 |
+|------|------|------|
+| `analyze <code>` | 个股全维度分析 | ✅ |
+| `analyze <code> --json` | JSON输出 | ✅ |
+| `analyze <code> --brief` | 简要输出 | ✅ |
+| `analyze <code> --html` | HTML报告输出 | ✅ |
+| `concept` | 概念板块扫描 | ✅ |
+| `concept --json` | JSON输出 | ✅ |
+| `concept --html` | HTML报告输出 | ✅ |
+| `market` | 宏观市场概览 | ✅ |
+| `market --html` | HTML报告输出 | ✅ |
+| `analyze-all` | 自选批量分析 | ✅ (简单循环) |
+| `add <code>` | 加入自选 | ✅ |
+| `rm <code>` | 移除自选 | ✅ |
+| `list` | 查看自选 | ✅ |
+
+---
+
+## 3.5 HTML报告系统
+
+### 模板架构
+
+```
+templates/
+├── base.html              # 197行 基础模板 (暗色主题 + CSS变量 + 移动端适配)
+├── stock_report.html      # 440行 个股分析报告 (8模块)
+├── concept_report.html    # 245行 概念分析报告
+├── market_report.html     # 244行 市场概览报告
+└── components/            # 6个可复用组件
+    ├── metric_grid.html   # 指标网格
+    ├── signal_badge.html  # 信号标签
+    ├── score_gauge.html   # 评分仪表盘
+    ├── progress_bar.html  # 进度条
+    ├── data_table.html    # 数据表格
+    └── collapsible.html   # 折叠面板
+```
+
+### 渲染器
+
+`core/html_renderer.py` (81行) — 通用Jinja2渲染器，支持`--html`参数输出完整HTML报告。
+
+**使用方式**:
+```bash
+# 个股分析HTML
+python3 core/cli.py analyze 600519 --html
+
+# 概念扫描HTML
+python3 core/cli.py concept --html
+
+# 市场概览HTML
+python3 core/cli.py market --html
+```
+
+---
+
+## 3.6 配置管理
+
+### 配置文件结构
+
+```
+config/
+├── __init__.py         # 59行 配置管理(Cookie + 代理 + get_proxy())
+├── config.yaml         # 实际配置 (不提交git, 本地使用)
+└── config.example.yaml # 配置模板 (提交git, 用户参考)
+```
+
+### 配置项说明
+
+| 字段 | 类型 | 说明 | 获取方式 |
+|------|------|------|----------|
+| `eastmoney.cookie` | string | 东方财富Cookie | 浏览器F12 → Network → 任意请求的Cookie头 |
+| `eastmoney.ut` | string | 固定参数 | 无需修改 |
+| `proxy.https` | string | HTTPS代理地址 | 可选，默认读环境变量`HTTPS_PROXY` |
+
+**Cookie获取步骤**:
+1. 打开 https://quote.eastmoney.com/bk/
+2. F12 → Network → 刷新页面
+3. 找到 `push2.eastmoney.com` 请求
+4. 复制 Request Headers 中的 Cookie 值
+
+**Cookie有效期**: 通常1-7天，过期时需要重新获取
+
+### 本地开发
+
+```bash
+# 复制模板
+cp config/config.example.yaml config/config.yaml
+
+# 编辑配置文件，填入实际Cookie
+vim config/config.yaml
+```
+
+**注意**: `config/config.yaml` 已在 `.gitignore` 中，不会被提交。
+
+---
+
+## 4. 数据源 & 路由策略
+
+### 4.1 直连 (国内CDN, 无需代理)
+
+| API | 域名 | 用途 | 备注 |
+|-----|------|------|------|
+| 腾讯行情 | `qt.gtimg.cn` | 实时行情(价格/PE/PB/市值) | GBK编码 |
+| 新浪K线 | `money.finance.sina.com.cn` | 历史日K线(250日) | JSON(非标准, 需正则修复) |
+| 东财F10 | `emweb.securities.eastmoney.com` | 公司基本信息 | JSON (Playwright拦截) |
+| 东财股吧 | `guba.eastmoney.com` | 股吧热帖 | HTML解析 |
+| 东财互动易 | `guba.eastmoney.com/qa/` | 投资者问答 | Direct请求 |
+| 东财搜索 | `search-api-web.eastmoney.com` | 概念新闻搜索 | JSONP格式, 需剥离 `jQuery()` 包装 |
+| 东财分析师评级 | `reportapi.eastmoney.com` | 机构评级数据 | JSON格式 |
+| 东财行情页 | `quote.eastmoney.com` | 概念列表+成分股 | Playwright页面导航拦截 |
+
+### 4.2 Playwright (浏览器自动化)
+
+| 模块 | 功能 | 备注 |
+|------|------|------|
+| `em_browser.py` | 共享浏览器会话 | 避免重复启动Chromium |
+| `em_concept.py` | 概念列表+成分股采集 | 页面导航拦截XHR响应 |
+| `info.py` (F10) | 公司详细信息 | 页面导航拦截 |
+| `sentiment.py` (股吧) | 股吧热帖+互动易 | HTML解析 |
+
+### 4.3 代理 (需要 Xray @ 127.0.0.1:10809)
+
+| API | 包/域名 | 用途 | 备注 |
+|-----|---------|------|------|
+| akshare THS | `stock_financial_abstract_ths` | 财务摘要(ROE/成长等) | 需 `HTTPS_PROXY` |
+| akshare 分红 | `stock_history_dividend_detail` | 分红历史 | 需 `HTTPS_PROXY` |
+| akshare 预测 | `stock_profit_forecast_ths` | 机构盈利预测 | 需 `HTTPS_PROXY` |
+| akshare 北向 | `stock_hsgt_individual_detail_em` | 北向持股数据 | 需 `HTTPS_PROXY` |
+| akshare 涨停池 | `stock_zt_pool_em` | 涨跌停统计 | 需 `HTTPS_PROXY` |
+
+### 4.4 封锁 (服务器IP限制, 不可用)
+
+| API | 域名 | 影响 | 替代方案 |
+|-----|------|------|----------|
+| 东财push2直连 | `push2.eastmoney.com` | 频繁限流ERR_EMPTY_RESPONSE | Playwright页面导航拦截 |
+| 东财push2his | `push2his.eastmoney.com` | 个股主力资金流缺失 | 用成交额统计+北向替代 |
+| akshare概念 | `stock_board_concept_*` | 概念板块详细数据不可用 | Playwright拦截替代 |
+
+---
+
+## 5. 评分体系
+
+### 5.1 四维评分 (各 ±25 分, 总分 ±100)
+
+| 维度 | 权重 | 评分依据 |
+|------|------|----------|
+| 技术面 | ±25 | MA排列, MACD金叉/死叉, KDJ超买超卖, RSI, 价格分位, 量比 |
+| 基本面 | ±25 | ROE, 毛利率, 负债率, 营收/净利增速, 分红, 一致预期 |
+| 资金面 | ±25 | 成交额量比, 北向持股趋势 |
+| 舆情面 | ±25 | 股吧情绪(bullish/bearish/neutral), 帖子数量, 互动易问答, 分析师评级 |
+
+### 5.2 评级映射
+
+| 总分 | 评级 |
+|------|------|
+| ≥ 60 | 强看多 |
+| ≥ 30 | 看多 |
+| ≥ 10 | 偏多 |
+| ≥ -10 | 中性 |
+| ≥ -30 | 偏空 |
+| ≥ -60 | 看空 |
+| < -60 | 强看空 |
+
+---
+
+## 6. 概念板块分析
+
+### 6.1 趋势定性
+
+基于**100只成分股**的涨幅分布+持续性分布+放量信号综合判断板块状态。
+
+| 状态 | 条件 |
+|------|------|
+| `breakout` (金叉启动) | 刚启动占比 > 25% 且 上涨面 > 60% |
+| `strong` (主升浪) | 连涨3天+占比 > 35% 且 上涨面 > 65% 且 涨停 ≥ 2只 |
+| `rising` (上升期) | (连涨3天+>15% 或 连涨2天>10%) 且 上涨面 > 55% |
+| `weak_rise` (弱上升) | 上涨面 > 50% 且 强势股 < 10% |
+| `falling` (走弱) | 下跌面 > 50% |
+| `weak` (震荡) | 其他 |
+
+### 6.2 "刚启动"判定逻辑
+
+**双重条件** (`_is_just_started`):
+1. **首日上涨**: 今日收盘 > 昨日收盘
+2. **低点距离过滤**: 当前价相对近20日最低价涨幅 ≤ 涨停幅度 × 1.2
+
+| 板块 | 涨停幅度 | 刚启动阈值 |
+|------|---------|-----------|
+| 主板 (60xxxx) | 10% | 12% |
+| 创业板 (300xxx) | 20% | 24% |
+| 科创板 (688xxx) | 20% | 24% |
+| 北交所 (8xxxxx) | 30% | 36% |
+
+**设计意图**: 首次涨停的股票不会被误杀（主板涨停10% < 阈值12%），但已涨一波的反弹股会被正确排除。
+
+### 6.3 概念综合评分 (100分制)
+
+| 维度 | 满分 | 评分依据 |
+|------|------|----------|
+| 赚钱效应 | 30 | >7%占比 + 上涨比例 |
+| 介入时机 | 25 | 刚启动占比高加分, 连涨3天+过多减分 |
+| 资金强度 | 25 | 放量股占比 + 涨停数 |
+| 板块宽度 | 20 | 上涨家数占比 |
+
+| 总分 | 标签 |
+|------|------|
+| ≥ 70 | ⭐ 重点关注 |
+| ≥ 50 | 👀 可以关注 |
+| ≥ 30 | ⚡ 一般 |
+| < 30 | ⚠️ 谨慎 |
+
+### 6.4 数据源架构 — Playwright页面导航拦截 (v6)
+
+**背景**: 东财push2直连在服务器IP上频繁限流(ERR_EMPTY_RESPONSE)，Cookie无法根治。
+
+**方案**: Playwright真实浏览器访问东财行情页，拦截XHR响应获取数据。
+
+```
+Playwright Chromium
+  → 访问 quote.eastmoney.com/bk/ (概念列表页)
+    → 拦截 push2.eastmoney.com/api/data/v1/get XHR响应
+      → 解析JSON获取概念列表(资金流入排序)
+  → 对每个top_n概念，访问详情页
+    → 滚动触发懒加载
+    → 拦截 dataapi.eastmoney.com XHR响应
+      → 解析JSON获取成分股(按涨幅排序,前100只)
+  → 增量合并到离线缓存 (data/concept_cache.json)
+```
+
+**排名引擎** (`collectors/em_concept.py` + `analysis/concept_rank.py`):
+1. Playwright访问概念列表页，拦截XHR获取概念列表
+2. 按资金流入(f62)排序，过滤非行业概念，保留top_n个
+3. 对每个概念，Playwright导航到详情页，拦截XHR获取成分股
+4. 增量合并到离线缓存 (`data/concept_cache.json`)
+5. 在线失败时使用离线缓存兜底
+
+**Cookie管理**:
+- 存储在 `config/config.yaml` 的 `eastmoney.cookie` 字段
+- 有效期通常1-7天，过期时需重新获取
+- 过期时有清晰的错误提示引导用户操作
+
+### 6.5 过滤规则
+
+- 地域概念过滤：排除 "成渝特区"、"福建自贸区" 等地域性概念
+- 龙头去重：同一龙头股只保留涨幅最高的概念
+
+---
+
+## 7. 服务器环境
+
+- **OS**: Linux (6.1.84)
+- **Python**: 3.11
+- **Proxy**: Xray @ 127.0.0.1:10809 (HTTP, 用户态 systemd, whitelist 路由)
+- **Playwright**: Chromium (用于东财页面导航拦截)
+- **Dependencies**: `akshare>=1.10.0`, `requests>=2.28.0`, `pyyaml>=6.0`, `jinja2>=3.1.0`, `playwright>=1.40.0`
+- **Working Dir**: `/tmp/stock-analysis-pro/`
+- **Config**: `config/config.yaml` (Cookie在此管理, 不提交git)
+- **Cache**: `./cache/` (JSON, TTL 1h)
+- **Watchlist**: `./data/watchlist.json`
+
+---
+
+## 8. 关键经验
+
+1. **东财push2直连频繁限流** — 服务器IP上ERR_EMPTY_RESPONSE，Cookie无法根治，改用Playwright页面导航拦截
+2. **新浪概念列表过时** — 175个概念，缺芯片/半导体/AI等热门，已废弃
+3. **Playwright共享会话** — `em_browser.py`避免重复启动浏览器，F10/股吧/搜索/研报复用同一会话
+4. **akshare的stock_board_concept_*系列** — 在服务器上被封(RemoteDisconnected)
+5. **涨跌停数据用akshare** — `stock_zt_pool_em`，不依赖东财push2
+6. **东财搜索API可用** — JSONP格式需去掉jQuery()包装，支持概念关键词搜索新闻
+7. **北向数据过时** — 港交所2024-08停止披露个股级数据，评分自动降权
+
+---
+
+## 9. 待完成清单
+
+### ⏸️ 暂不实施（无可用数据源）
+- 主力资金流替代方案
+- 融资融券数据源
+- 行业板块数据
+- 大宗交易数据
+- 行业估值对比
+
+### 🔮 未来优化方向
+- 概念过滤优化（品牌/政策/指数/重叠概念分类）
+- 单元测试
+- 报告模板个性化定制
+- 更多数据源接入（同花顺/雪球）

@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+{% from "components/collapsible.html" import collapsible %}
+
+{% block title %}{{ data.basic.name|default('?') }} ({{ data.symbol }}) — 分析报告{% endblock %}
+
+{% block body %}
+{# ===== Helper macros ===== #}
+{% macro pct_color(v) %}{% if v is not none and v > 0 %}up{% elif v is not none and v < 0 %}down{% else %}flat{% endif %}{% endmacro %}
+{% macro fmt_pct(v) %}{% if v is not none %}{{ '%+.2f'|format(v) }}%{% else %}--{% endif %}{% endmacro %}
+{% macro fmt_num(v, d=2) %}{% if v is not none %}{{ '{:,.{}f}'.format(v, d) }}{% else %}--{% endif %}{% endmacro %}
+{% macro fmt_yi(v) %}{% if v is not none and v > 0 %}{{ '{:.1f}'.format(v) }}亿{% else %}--{% endif %}{% endmacro %}
+
+{% set basic = data.basic|default({}) %}
+{% set company = data.company|default({}) %}
+{% set tech = data.technicals|default({}) %}
+{% set fund = data.fundamentals|default({}) %}
+{% set cap = data.capital|default({}) %}
+{% set sent = data.sentiment|default({}) %}
+{% set score = data.score|default({}) %}
+{% set market = data.market|default({}) %}
+{% set valuation = data.valuation|default({}) %}
+{% set comparison = data.comparison|default({}) %}
+
+{# ===== 1. HEADER ===== #}
+<div class="header">
+  <h1>{{ basic.name|default('?') }} <span style="font-size:13px;font-weight:400;color:var(--text-secondary)">{{ data.symbol }}</span></h1>
+  {% if company.industry %}
+  <div class="subtitle">{{ company.industry }}{% if company.listing_date %} · {{ company.listing_date[:4] }}年上市{% endif %}</div>
+  {% endif %}
+  <div class="price-row">
+    <span class="price {{ pct_color(basic.change_pct) }}">¥{{ fmt_num(basic.price) }}</span>
+    <span class="change {{ pct_color(basic.change_pct) }}">{{ fmt_pct(basic.change_pct) }}</span>
+  </div>
+  {% set score_val = score.total_score|default(0) %}
+  {% set score_pct = (score_val / 100 * 100) if score_val > 0 else 0 %}
+  <span class="score-badge {% if score_pct >= 60 %}bullish{% elif score_pct >= 40 %}neutral{% else %}bearish{% endif %}">
+    ⭐ {{ score_val }}分 · {{ score.rating|default('--') }}
+  </span>
+</div>
+
+{# ===== 2. MARKET CONTEXT ===== #}
+{% set indices = market.indices|default({}) %}
+{% if indices %}
+<div class="section">
+  <div class="section-title"><span class="icon">📊</span> 大盘环境</div>
+  <div class="metric-grid cols-3">
+    {% for name in ['上证指数', '深证成指', '创业板指'] %}
+    {% set idx = indices.get(name, {}) %}
+    {% if idx %}
+    <div class="metric-item">
+      <div class="label">{{ name[:2] }}</div>
+      <div class="value">{{ '{:.0f}'.format(idx.price) }}</div>
+      <div style="font-size:11px;margin-top:2px;" class="{{ pct_color(idx.change_pct) }}">{{ fmt_pct(idx.change_pct) }}</div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% if market.relative_strength is not none %}
+  <div style="padding:8px 16px;font-size:12px;color:var(--text-secondary);">
+    相对强度: <span class="{{ pct_color(market.relative_strength) }}">{{ fmt_pct(market.relative_strength) }}</span>
+    {% if market.stronger_than_market %}(强于大盘){% else %}(弱于大盘){% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ===== 3. KEY METRICS ===== #}
+<div class="section">
+  <div class="section-title"><span class="icon">📈</span> 关键指标</div>
+  <div class="metric-grid cols-5">
+    <div class="metric-item">
+      <div class="label">PE(动)</div>
+      <div class="value">{{ fmt_num(basic.pe, 1) }}</div>
+    </div>
+    <div class="metric-item">
+      <div class="label">PB</div>
+      <div class="value">{{ fmt_num(basic.pb, 1) }}</div>
+    </div>
+    <div class="metric-item">
+      <div class="label">总市值</div>
+      <div class="value" style="font-size:13px;">{{ fmt_yi(basic.total_mv) }}</div>
+    </div>
+    <div class="metric-item">
+      <div class="label">换手率</div>
+      <div class="value">{{ fmt_num(basic.turnover_rate, 1) }}%</div>
+    </div>
+    <div class="metric-item">
+      <div class="label">振幅</div>
+      <div class="value">{{ fmt_num(basic.amplitude, 1) }}%</div>
+    </div>
+  </div>
+</div>
+
+{# ===== 4. COMPANY PROFILE ===== #}
+{% if company.main_business or company.product_type %}
+<div class="section">
+  <div class="section-title"><span class="icon">🏢</span> 公司概况</div>
+  <table class="data-table">
+    {% if company.full_name %}
+    <tr><td>全称</td><td style="font-size:12px;">{{ company.full_name }}</td></tr>
+    {% endif %}
+    {% if company.industry %}
+    <tr><td>行业</td><td>{{ company.industry }}</td></tr>
+    {% endif %}
+    {% if company.main_business %}
+    <tr><td>主营</td><td style="font-size:12px;text-align:right;max-width:60%;word-break:break-all;">{{ company.main_business }}</td></tr>
+    {% endif %}
+    {% if company.product_names %}
+    <tr><td>产品</td><td style="font-size:12px;text-align:right;max-width:60%;word-break:break-all;">{{ company.product_names }}</td></tr>
+    {% endif %}
+  </table>
+</div>
+{% endif %}
+
+{# ===== 5. TECHNICALS ===== #}
+<div class="section">
+  <div class="section-title"><span class="icon">📉</span> 技术面分析</div>
+
+  {# MA Signals #}
+  <table class="data-table">
+    {% for ma_name, ma_key in [('MA5','ma5'),('MA10','ma10'),('MA20','ma20'),('MA60','ma60'),('MA120','ma120'),('MA250','ma250')] %}
+    {% set ma_val = tech.get(ma_key) %}
+    {% set ma_sig = tech.get(ma_key ~ '_signal') %}
+    {% if ma_val %}
+    <tr>
+      <td>{{ ma_name }}</td>
+      <td>
+        {{ fmt_num(ma_val) }}
+        {% if ma_sig == 'above' %}<span style="color:var(--green);font-size:11px;margin-left:4px;">▲站上</span>
+        {% elif ma_sig == 'below' %}<span style="color:var(--red);font-size:11px;margin-left:4px;">▼跌破</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </table>
+
+  {# MACD / KDJ / RSI #}
+  {% set macd = tech.macd|default({}) %}
+  <div class="metric-grid cols-4" style="margin-top:var(--gap);">
+    <div class="metric-item">
+      <div class="label">MACD</div>
+      <div class="value {{ 'up' if macd.signal == 'bullish' else 'down' if macd.signal == 'bearish' else '' }}" style="font-size:12px;">
+        {% if macd.signal == 'bullish' %}多头{% elif macd.signal == 'bearish' %}空头{% else %}--{% endif %}
+      </div>
+    </div>
+    {% set kdj = tech.kdj|default({}) %}
+    <div class="metric-item">
+      <div class="label">KDJ</div>
+      <div class="value" style="font-size:12px;">{{ fmt_num(kdj.k, 0) }}/{{ fmt_num(kdj.d, 0) }}</div>
+    </div>
+    <div class="metric-item">
+      <div class="label">RSI6</div>
+      <div class="value" style="font-size:12px;">{{ fmt_num(tech.rsi6, 0) }}</div>
+    </div>
+    <div class="metric-item">
+      <div class="label">量比</div>
+      <div class="value" style="font-size:12px;">{{ fmt_num(tech.volume_ratio, 1) }}</div>
+    </div>
+  </div>
+
+  {# Bollinger / Support / Resistance / Percentile #}
+  {% set boll = tech.boll|default({}) %}
+  <table class="data-table">
+    {% if boll.upper %}
+    <tr><td>布林上轨</td><td>{{ fmt_num(boll.upper) }}</td></tr>
+    <tr><td>布林中轨</td><td>{{ fmt_num(boll.middle) }}</td></tr>
+    <tr><td>布林下轨</td><td>{{ fmt_num(boll.lower) }}</td></tr>
+    {% endif %}
+    {% if tech.support %}<tr><td>支撑位</td><td class="up">{{ fmt_num(tech.support) }}</td></tr>{% endif %}
+    {% if tech.resistance %}<tr><td>压力位</td><td class="down">{{ fmt_num(tech.resistance) }}</td></tr>{% endif %}
+    {% set p60 = tech.percentile_60d|default({}) %}
+    {% if p60.value is not none %}<tr><td>60日分位</td><td>{{ fmt_num(p60.value, 1) }}%</td></tr>{% endif %}
+    {% set p250 = tech.percentile_250d|default({}) %}
+    {% if p250.value is not none %}<tr><td>250日分位</td><td>{{ fmt_num(p250.value, 1) }}%</td></tr>{% endif %}
+  </table>
+
+  {# Technical signals #}
+  {% if tech.signals or tech.warnings %}
+  <div class="signals-wrap" style="border-top:1px solid var(--card-border);padding-top:12px;">
+    {% for s in tech.signals|default([]) %}
+    <span class="signal-badge positive">✅ {{ s }}</span>
+    {% endfor %}
+    {% for w in tech.warnings|default([]) %}
+    <span class="signal-badge warning">⚠️ {{ w }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+{# ===== 6. FUNDAMENTALS ===== #}
+<div class="section">
+  <div class="section-title"><span class="icon">💰</span> 基本面分析</div>
+
+  {% set prof = fund.profitability|default({}) %}
+  {% set health = fund.health|default({}) %}
+  {% set growth = fund.growth|default({}) %}
+  {% set roe_val = prof.roe.value|default(none) if prof.roe is mapping else none %}
+  {% set gm_val = prof.gross_margin.value|default(none) if prof.gross_margin is mapping else none %}
+  {% set nm_val = prof.net_margin.value|default(none) if prof.net_margin is mapping else none %}
+  {% set dr_val = health.debt_ratio.value|default(none) if health.debt_ratio is mapping else none %}
+  {% set rg_val = growth.revenue_growth.value|default(none) if growth.revenue_growth is mapping else none %}
+  {% set ng_val = growth.net_profit_growth.value|default(none) if growth.net_profit_growth is mapping else none %}
+
+  {# Progress bars for key metrics #}
+  <div style="padding: 4px 0;">
+    {% if roe_val is not none %}
+    <div class="progress-row">
+      <span class="prog-label">ROE</span>
+      <div class="prog-bar">
+        <div class="prog-fill" style="width:{{ [roe_val / 30 * 100, 100]|min }}%;background:var(--green);"></div>
+      </div>
+      <span class="prog-value {{ 'up' if roe_val > 15 else 'warn' if roe_val > 8 else 'down' }}">{{ fmt_num(roe_val, 1) }}%</span>
+    </div>
+    {% endif %}
+    {% if gm_val is not none %}
+    <div class="progress-row">
+      <span class="prog-label">毛利率</span>
+      <div class="prog-bar">
+        <div class="prog-fill" style="width:{{ [gm_val, 100]|min }}%;background:var(--accent);"></div>
+      </div>
+      <span class="prog-value">{{ fmt_num(gm_val, 1) }}%</span>
+    </div>
+    {% endif %}
+    {% if dr_val is not none %}
+    <div class="progress-row">
+      <span class="prog-label">负债率</span>
+      <div class="prog-bar">
+        <div class="prog-fill" style="width:{{ [dr_val, 100]|min }}%;background:{% if dr_val > 60 %}var(--red){% elif dr_val > 40 %}var(--yellow){% else %}var(--green){% endif %};"></div>
+      </div>
+      <span class="prog-value {{ 'down' if dr_val > 60 else 'warn' if dr_val > 40 else 'up' }}">{{ fmt_num(dr_val, 1) }}%</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <table class="data-table">
+    {% if nm_val is not none %}<tr><td>净利率</td><td>{{ fmt_num(nm_val, 1) }}%</td></tr>{% endif %}
+    {% if rg_val is not none %}<tr><td>营收增速</td><td class="{{ pct_color(rg_val) }}">{{ fmt_pct(rg_val) }}</td></tr>{% endif %}
+    {% if ng_val is not none %}<tr><td>净利增速</td><td class="{{ pct_color(ng_val) }}">{{ fmt_pct(ng_val) }}</td></tr>{% endif %}
+    {% if fund.eps is not none %}<tr><td>EPS</td><td>¥{{ fmt_num(fund.eps) }}</td></tr>{% endif %}
+    {% if fund.nav_per_share is not none %}<tr><td>每股净资产</td><td>¥{{ fmt_num(fund.nav_per_share) }}</td></tr>{% endif %}
+    {% if fund.ocf_per_share is not none %}<tr><td>每股现金流</td><td>¥{{ fmt_num(fund.ocf_per_share) }}</td></tr>{% endif %}
+  </table>
+
+  {# Forecast #}
+  {% if fund.forecast %}
+  {% call collapsible('机构一致预期 (' ~ fund.forecast|length ~ '家)', 'forecast') %}
+    <table class="data-table">
+      {% for f in fund.forecast %}
+      <tr>
+        <td>{{ f.year }}年</td>
+        <td>EPS ¥{{ fmt_num(f.mean_eps) }} ({{ f.count }}家)</td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% endcall %}
+  {% endif %}
+
+  {# Dividend #}
+  {% if fund.dividend and fund.dividend.history %}
+  {% call collapsible('分红历史 (' ~ fund.dividend.history|length ~ '条)', 'dividend') %}
+    {% for d in fund.dividend.history %}
+    <div class="list-item">
+      <div class="item-title">{{ d|default('--') }}</div>
+    </div>
+    {% endfor %}
+  {% endcall %}
+  {% endif %}
+
+  {# Fundamental signals #}
+  {% if fund.signals %}
+  <div class="signals-wrap" style="border-top:1px solid var(--card-border);padding-top:12px;">
+    {% for s in fund.signals %}
+    <span class="signal-badge positive">✅ {{ s }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+{# ===== 7. CAPITAL & SENTIMENT ===== #}
+<div class="section">
+  <div class="section-title"><span class="icon">🎯</span> 资金面</div>
+
+  {# Volume stats #}
+  {% set vol = cap.volume_stats|default({}) %}
+  {% if vol.stats %}
+  <table class="data-table">
+    {% set vs = vol.stats %}
+    <tr><td>近{{ vol.period_days|default(20) }}日成交中位</td><td>{{ fmt_yi(vs.median) }}</td></tr>
+    {% if vs.high %}<tr><td>期间最高</td><td>{{ fmt_yi(vs.high) }}</td></tr>{% endif %}
+    {% if vs.low %}<tr><td>期间最低</td><td>{{ fmt_yi(vs.low) }}</td></tr>{% endif %}
+  </table>
+  {% endif %}
+
+  {# Northbound #}
+  {% set nb = cap.northbound|default({}) %}
+  {% if nb.summary %}
+  <div style="padding:10px 16px;font-size:12px;color:var(--text-secondary);border-top:1px solid var(--card-border);">
+    {% if nb.summary.stale %}⚠️ 北向数据过时 ({{ nb.summary.stale_note|default('') }})
+    {% else %}📊 北向持股占比: {{ nb.summary.ratio.current|default('--') }}%
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# Shareholder changes #}
+  {% set sh = cap.shareholder_changes|default({}) %}
+  {% if sh.changes %}
+  <table class="data-table">
+    <tr><td>大股东变动</td><td>近{{ sh.changes|length }}条: 增持{{ sh.recent_increase|default(0) }} / 减持{{ sh.recent_decrease|default(0) }}</td></tr>
+  </table>
+  {% endif %}
+</div>
+
+{# ===== 8. SENTIMENT ===== #}
+<div class="section">
+  <div class="section-title"><span class="icon">💬</span> 舆情面</div>
+  <table class="data-table">
+    <tr><td>情绪信号</td><td>{{ sent.label|default('--') }}</td></tr>
+    {% if sent.analyst_consensus %}<tr><td>机构一致预期</td><td class="accent">{{ sent.analyst_consensus }}</td></tr>{% endif %}
+  </table>
+
+  {# Analyst ratings #}
+  {% set ar = sent.analyst_ratings|default({}) %}
+  {% if ar.reports %}
+  {% call collapsible('机构研报 (' ~ ar.reports|length ~ '份)', 'analyst') %}
+    {% for r in ar.reports[:5] %}
+    <div class="list-item">
+      <div class="item-title">
+        <span class="signal-badge {% if r.rating == '买入' or r.rating == '强烈推荐' %}positive{% elif r.rating == '增持' or r.rating == '推荐' %}info{% else %}warning{% endif %}" style="margin:0 6px 0 0;font-size:11px;">
+          {{ r.rating|default('持有') }}
+        </span>
+        {{ r.title|default('')|truncate(40, True, '...') }}
+      </div>
+      <div class="item-meta">{{ r.org|default('') }} · {{ (r.date or '')|truncate(10, True, '') }}</div>
+    </div>
+    {% endfor %}
+  {% endcall %}
+  {% endif %}
+
+  {# Guba posts #}
+  {% if sent.raw_posts %}
+  {% call collapsible('股吧热帖 (' ~ sent.raw_posts|length ~ '条)', 'guba') %}
+    {% for p in sent.raw_posts[:5] %}
+    <div class="list-item">
+      <div class="item-title">{{ p.title|default('') }}</div>
+    </div>
+    {% endfor %}
+  {% endcall %}
+  {% endif %}
+
+  {# News #}
+  {% if sent.news %}
+  {% call collapsible('相关新闻 (' ~ sent.news|length ~ '条)', 'news') %}
+    {% for n in sent.news[:5] %}
+    <div class="list-item">
+      <div class="item-title">{{ n.title|default('') }}</div>
+      <div class="item-meta">{{ n.media|default('') }} · {{ (n.date or '')|truncate(10, True, '') }}</div>
+    </div>
+    {% endfor %}
+  {% endcall %}
+  {% endif %}
+
+  {# Interactive Q&A (互动易) #}
+  {% if sent.interactive_qa %}
+  {% call collapsible('互动易问答 (' ~ sent.interactive_qa|length ~ '条)', 'qa') %}
+    {% for qa in sent.interactive_qa[:5] %}
+    <div class="list-item">
+      <div class="item-title" style="color:var(--accent);">
+        💬 {{ qa.question|truncate(80, True, '...') }}
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;padding-left:16px;border-left:2px solid var(--card-border);">
+        {{ qa.answer|truncate(200, True, '...') }}
+      </div>
+      <div class="item-meta">{{ qa.user|default('') }} · {{ qa.date|default('') }}</div>
+    </div>
+    {% endfor %}
+  {% endcall %}
+  {% endif %}
+</div>
+
+{# ===== 9. SCORE & VERDICT ===== #}
+<div class="section">
+  <div class="section-title"><span class="icon">✅</span> 综合研判</div>
+
+  {# Score gauge #}
+  <div class="gauge-wrap">
+    <svg width="140" height="85" viewBox="0 0 140 85">
+      <path d="M 15 75 A 55 55 0 0 1 125 75" fill="none" stroke="#21262d" stroke-width="10" stroke-linecap="round"/>
+      {% set sp = score_val %}
+      <path d="M 15 75 A 55 55 0 0 1 125 75" fill="none"
+        stroke="{% if sp >= 60 %}#3fb950{% elif sp >= 40 %}#d29922{% else %}#f85149{% endif %}"
+        stroke-width="10" stroke-linecap="round"
+        stroke-dasharray="{{ sp * 1.73 }} 173" />
+    </svg>
+    <div class="gauge-score" style="color:{% if sp >= 60 %}var(--green){% elif sp >= 40 %}var(--yellow){% else %}var(--red){% endif %}">
+      {{ score_val }}
+    </div>
+    <div class="gauge-label">{{ score.rating|default('--') }}</div>
+  </div>
+
+  {# Dimension scores #}
+  <div class="metric-grid cols-4">
+    {% set dims = [('技术', score.technical), ('基本面', score.fundamental), ('资金', score.capital), ('舆情', score.sentiment)] %}
+    {% for name, val in dims %}
+    <div class="metric-item">
+      <div class="label">{{ name }}</div>
+      <div class="value {{ 'up' if val > 0 else 'down' if val < 0 else 'flat' }}">{{ '%+d'|format(val) if val is not none else '--' }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# Final signals & warnings #}
+  {% if score.signals or score.warnings %}
+  <div class="signals-wrap" style="border-top:1px solid var(--card-border);padding-top:12px;">
+    {% for s in score.signals|default([]) %}
+    <span class="signal-badge positive">✅ {{ s }}</span>
+    {% endfor %}
+    {% for w in score.warnings|default([]) %}
+    <span class="signal-badge warning">⚠️ {{ w }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# Historical comparison #}
+  {% if comparison and comparison.prev_date %}
+  <div style="padding:10px 16px;font-size:12px;color:var(--text-secondary);border-top:1px solid var(--card-border);">
+    📅 对比 {{ comparison.prev_date[:10] }}:
+    价格 {{ fmt_pct(comparison.price_change_pct) }} ·
+    评分 {{ '%+d'|format(comparison.score_change) if comparison.score_change else '持平' }} ·
+    评级 {{ comparison.rating_change|default('--') }}
+  </div>
+  {% endif %}
+</div>
+
+{# ===== FOOTER ===== #}
+<div class="footer">
+  Stock Analysis Pro · 生成时间: {{ now.strftime('%Y-%m-%d %H:%M') if now else '' }}<br>
+  数据仅供参考，不构成投资建议
+</div>
+{% endblock %}

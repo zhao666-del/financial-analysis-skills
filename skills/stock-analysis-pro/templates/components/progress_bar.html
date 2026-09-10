@@ -1,0 +1,18 @@
+{# Progress Bar Component — 水平进度条
+   Usage: {% with bars=[{label:'ROE', value:18.5, max:30, unit:'%', color:'green'}, ...] %}
+          {% include "components/progress_bar.html" %}
+          {% endwith %}
+#}
+<div style="padding: 8px 0;">
+{% for bar in bars %}
+  <div class="progress-row">
+    <span class="prog-label">{{ bar.label }}</span>
+    <div class="prog-bar">
+      {% set fill_pct = (bar.value / bar.max * 100) if bar.max and bar.value is not none else 0 %}
+      <div class="prog-fill" style="width: {{ [fill_pct, 100]|min }}%;
+        background: {% if bar.color == 'green' %}var(--green){% elif bar.color == 'red' %}var(--red){% elif bar.color == 'yellow' %}var(--yellow){% else %}var(--accent){% endif %};"></div>
+    </div>
+    <span class="prog-value">{{ bar.value if bar.value is not none else '--' }}{{ bar.unit|default('') }}</span>
+  </div>
+{% endfor %}
+</div>

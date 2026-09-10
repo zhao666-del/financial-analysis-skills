@@ -1,0 +1,14 @@
+{# Signal Badge Component — 信号标签
+   Usage: {% with badges=[{text:'均线多头', type:'positive'}, {text:'估值偏高', type:'warning'}] %}
+          {% include "components/signal_badge.html" %}
+          {% endwith %}
+   type: positive | negative | warning | info
+#}
+<div class="signals-wrap">
+{% for b in badges %}
+  <span class="signal-badge {{ b.type|default('info') }}">
+    {% if b.type == 'positive' %}✅{% elif b.type == 'negative' %}❌{% elif b.type == 'warning' %}⚠️{% else %}ℹ️{% endif %}
+    {{ b.text }}
+  </span>
+{% endfor %}
+</div>

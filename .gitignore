@@ -1,0 +1,35 @@
+# Local configuration and credentials
+**/config/config.yaml
+**/config/user.yaml
+**/.env
+**/.env.*
+!**/.env.example
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.coverage
+**/htmlcov/
+
+# Virtual environments and build output
+**/.venv/
+**/venv/
+**/env/
+**/build/
+**/dist/
+**/*.egg-info/
+
+# Runtime data and caches
+**/cache/
+**/data/watchlist.json
+
+# Editors and operating systems
+**/.vscode/
+**/.idea/
+**/*.swp
+**/*.swo
+**/.DS_Store
+**/Thumbs.db

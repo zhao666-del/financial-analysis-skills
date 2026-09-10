@@ -1,0 +1,4 @@
+interface:
+  display_name: "Research Depth"
+  short_description: "有效阅读、递归检索、来源去重与证据追踪"
+  default_prompt: "使用 $research-depth 为这项公司、基金或行业研究建立分级有效阅读与可审计证据包。"

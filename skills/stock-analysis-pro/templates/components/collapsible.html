@@ -1,0 +1,19 @@
+{# Collapsible Panel Component — 折叠面板
+   Usage: {% with panel_title='股吧热帖 (5条)', panel_id='guba' %}
+          {% call collapsible() %}
+            <div class="list-item">...</div>
+          {% endcall %}
+          {% endwith %}
+   open: true|false (default false)
+#}
+{% macro collapsible(title, id, open=false) %}
+<div class="collapsible{% if open %} open{% endif %}">
+  <div class="collapsible-toggle">
+    <span class="toggle-label">{{ title }}</span>
+    <span class="toggle-arrow">▼</span>
+  </div>
+  <div class="collapsible-content">
+    {{ caller() }}
+  </div>
+</div>
+{% endmacro %}

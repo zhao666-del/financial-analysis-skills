@@ -1,0 +1,7 @@
+interface:
+  display_name: "产业深度研究"
+  short_description: "从全产业链出发研究供需、技术、竞争、利润池与投资环节"
+  default_prompt: "使用 $industry-deep-research 先建立指定行业的完整上中下游与横向能力产业链，再研究供需、技术、竞争、利润池和投资环节。"
+
+policy:
+  allow_implicit_invocation: true

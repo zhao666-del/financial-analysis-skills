@@ -1,0 +1,13 @@
+{# Data Table Component — 通用键值对表格
+   Usage: {% with rows=[{label:'营业收入', value:'+42%', color:'up'}, ...] %}
+          {% include "components/data_table.html" %}
+          {% endwith %}
+#}
+<table class="data-table">
+{% for row in rows %}
+  <tr>
+    <td>{{ row.label }}</td>
+    <td class="{{ row.color|default('') }}">{{ row.value|default('--') }}</td>
+  </tr>
+{% endfor %}
+</table>

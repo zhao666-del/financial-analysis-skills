@@ -1,0 +1,14 @@
+api:
+  timeout: 5
+  retry: 3
+scoring:
+  weight_technical: 0.25
+  weight_fundamental: 0.25
+  weight_capital: 0.25
+  weight_sentiment: 0.25
+
+# HTTPS代理 (akshare等接口需要)
+# 留空则不使用代理 (直连环境)
+# 也可通过环境变量 HTTPS_PROXY 设置，优先级更高
+proxy:
+  https: ""

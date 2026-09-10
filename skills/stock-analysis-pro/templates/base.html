@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>{% block title %}Stock Analysis{% endblock %}</title>
+<style>
+/* === CSS Variables (dark theme) === */
+:root {
+  --bg: #0d1117;
+  --card: #161b22;
+  --card-border: #21262d;
+  --text: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --accent: #58a6ff;
+  --green: #3fb950;
+  --red: #f85149;
+  --yellow: #d29922;
+  --orange: #db6d28;
+  --purple: #bc8cff;
+  --radius: 12px;
+  --gap: 1px;
+}
+
+/* === Reset & Base === */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 480px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* === Header === */
+.header {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  padding: 20px 16px 16px;
+  text-align: center;
+  border-bottom: 1px solid var(--card-border);
+}
+.header h1 { font-size: 20px; font-weight: 700; }
+.header .subtitle { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+.header .price-row {
+  display: flex; align-items: baseline; justify-content: center; gap: 12px;
+  margin-top: 10px;
+}
+.header .price { font-size: 32px; font-weight: 700; }
+.header .change { font-size: 16px; font-weight: 600; }
+.header .score-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+.score-badge.bullish { background: rgba(63,185,80,0.15); color: var(--green); }
+.score-badge.neutral { background: rgba(210,153,34,0.15); color: var(--yellow); }
+.score-badge.bearish { background: rgba(248,81,73,0.15); color: var(--red); }
+
+/* === Section Card === */
+.section {
+  margin: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  padding: 14px 16px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-title .icon { font-size: 16px; }
+
+/* === Metric Grid (PE/PB/market cap etc) === */
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: var(--gap);
+  background: var(--card-border);
+}
+.metric-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.metric-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.metric-grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
+.metric-item {
+  background: var(--card);
+  padding: 10px 8px;
+  text-align: center;
+}
+.metric-item .label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.metric-item .value {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* === Signal Badges === */
+.signal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  margin: 3px 4px 3px 0;
+}
+.signal-badge.positive { background: rgba(63,185,80,0.12); color: var(--green); }
+.signal-badge.negative { background: rgba(248,81,73,0.12); color: var(--red); }
+.signal-badge.warning { background: rgba(210,153,34,0.12); color: var(--yellow); }
+.signal-badge.info { background: rgba(88,166,255,0.12); color: var(--accent); }
+.signals-wrap { padding: 8px 16px 12px; display: flex; flex-wrap: wrap; }
+
+/* === Data Table === */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table tr { border-bottom: 1px solid var(--card-border); }
+.data-table tr:last-child { border-bottom: none; }
+.data-table td { padding: 10px 16px; font-size: 13px; }
+.data-table td:first-child { color: var(--text-secondary); white-space: nowrap; }
+.data-table td:last-child { text-align: right; font-weight: 500; }
+
+/* === Progress Bar === */
+.progress-row { padding: 8px 16px; display: flex; align-items: center; gap: 10px; }
+.progress-row .prog-label { width: 60px; font-size: 12px; color: var(--text-secondary); flex-shrink: 0; }
+.progress-row .prog-bar { flex: 1; height: 6px; background: var(--card-border); border-radius: 3px; overflow: hidden; }
+.progress-row .prog-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+.progress-row .prog-value { width: 55px; font-size: 12px; text-align: right; font-weight: 600; flex-shrink: 0; }
+
+/* === Collapsible === */
+.collapsible { border-top: 1px solid var(--card-border); }
+.collapsible-toggle {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; cursor: pointer; user-select: none;
+}
+.collapsible-toggle .toggle-label { font-size: 13px; color: var(--text-secondary); }
+.collapsible-toggle .toggle-arrow { color: var(--text-muted); transition: transform 0.2s; font-size: 12px; }
+.collapsible-content { display: none; padding: 0 16px 12px; }
+.collapsible.open .collapsible-content { display: block; }
+.collapsible.open .toggle-arrow { transform: rotate(180deg); }
+
+/* === List Items === */
+.list-item {
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 13px;
+}
+.list-item:last-child { border-bottom: none; }
+.list-item .item-title { color: var(--text); }
+.list-item .item-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* === Score Gauge (SVG) === */
+.gauge-wrap { text-align: center; padding: 16px; }
+.gauge-score { font-size: 36px; font-weight: 700; margin-top: -8px; }
+.gauge-label { font-size: 13px; color: var(--text-secondary); }
+
+/* === Color helpers === */
+.up { color: var(--green); }
+.down { color: var(--red); }
+.flat { color: var(--text-muted); }
+.warn { color: var(--yellow); }
+.accent { color: var(--accent); }
+
+/* === Footer === */
+.footer {
+  text-align: center;
+  padding: 20px 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+</style>
+</head>
+<body>
+{% block body %}{% endblock %}
+
+<script>
+// Collapsible toggle
+document.querySelectorAll('.collapsible-toggle').forEach(function(el) {
+  el.addEventListener('click', function() {
+    this.parentElement.classList.toggle('open');
+  });
+});
+</script>
+</body>
+</html>

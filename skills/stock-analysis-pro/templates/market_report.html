@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}宏观市场概览 — {{ data.get('date', '') }}{% endblock %}
+{% block body %}
+{% macro fmt_pct(v) %}{% if v is not none %}{{ '%+.2f'|format(v) }}%{% else %}--{% endif %}{% endmacro %}
+{% macro fmt_num(v, d=2) %}{% if v is not none %}{{ '{:,.{}f}'.format(v, d) }}{% else %}--{% endif %}{% endmacro %}
+{% macro pct_color(v) %}{% if v is not none and v > 0 %}up{% elif v is not none and v < 0 %}down{% else %}flat{% endif %}{% endmacro %}
+
+{% set g = data.get('global', {}) %}
+{% set d = data.get('domestic', {}) %}
+{% set e = data.get('event', {}) %}
+{% set syn = data.get('synthesize', {}) %}
+
+{# ===== HEADER ===== #}
+<div class="header">
+  <h1>📊 宏观市场概览</h1>
+  <div class="subtitle">{{ data.get('date', '') }}</div>
+</div>
+
+{# ===== 1. 综合研判 ===== #}
+{% if syn %}
+<div class="section">
+  <div class="section-title"><span class="icon">✅</span> 综合研判</div>
+  <div style="padding:12px 16px;">
+    <div style="font-size:20px;font-weight:700;margin-bottom:6px;">
+      {% set outlook = syn.outlook|default('中性') %}
+      <span class="{% if '多' in outlook or '积极' in outlook %}up{% elif '空' in outlook or '谨慎' in outlook %}down{% else %}flat{% endif %}">
+        {{ outlook }}
+      </span>
+      <span style="font-size:13px;font-weight:400;color:var(--text-secondary);margin-left:8px;">
+        得分 {{ '%+d'|format(syn.score|default(0)) }}
+      </span>
+    </div>
+    {% if syn.action %}
+    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">💡 {{ syn.action }}</div>
+    {% endif %}
+  </div>
+  {% if syn.signals or syn.warnings %}
+  <div class="signals-wrap" style="border-top:1px solid var(--card-border);padding-top:10px;">
+    {% for s in syn.signals|default([]) %}
+    <span class="signal-badge positive">✅ {{ s }}</span>
+    {% endfor %}
+    {% for w in syn.warnings|default([]) %}
+    <span class="signal-badge warning">⚠️ {{ w }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ===== 2. 国际环境 ===== #}
+{% if g %}
+<div class="section">
+  <div class="section-title"><span class="icon">🌍</span> 国际环境 — {{ g.environment|default('未知') }}</div>
+
+  <div class="metric-grid cols-5">
+    {% set us10y = g.us_10y_yield|default({}) %}
+    {% if us10y.value is not none %}
+    <div class="metric-item">
+      <div class="label">美债10Y</div>
+      <div class="value {% if us10y.value > 4.5 %}down{% elif us10y.value < 3 %}up{% else %}flat{% endif %}">
+        {{ '%.2f'|format(us10y.value) }}%
+      </div>
+      <div class="item-meta">{{ us10y.date|default('')|truncate(10, True, '') }}</div>
+    </div>
+    {% endif %}
+
+    {% set fed = g.fed_rate|default({}) %}
+    {% if fed.value is not none %}
+    <div class="metric-item">
+      <div class="label">美联储利率</div>
+      <div class="value">{{ '%.2f'|format(fed.value) }}%</div>
+    </div>
+    {% endif %}
+
+    {% for c in g.commodities|default([]) %}
+    <div class="metric-item">
+      <div class="label">{{ c.name }}</div>
+      <div class="value {{ pct_color(c.change_pct) }}">{{ fmt_num(c.price, 1) }}</div>
+      <div class="item-meta {{ pct_color(c.change_pct) }}">{{ fmt_pct(c.change_pct) }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if g.signals or g.warnings %}
+  <div class="signals-wrap" style="border-top:1px solid var(--card-border);padding-top:10px;">
+    {% for s in g.signals|default([]) %}
+    <span class="signal-badge positive">✅ {{ s }}</span>
+    {% endfor %}
+    {% for w in g.warnings|default([]) %}
+    <span class="signal-badge warning">⚠️ {{ w }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ===== 3. 国内经济 ===== #}
+{% if d %}
+<div class="section">
+  <div class="section-title"><span class="icon">🏠</span> 国内经济 — {{ d.cycle|default('未知') }}</div>
+
+  <div class="metric-grid cols-5">
+    {% set cpi = d.cpi|default({}) %}
+    {% if cpi.value is not none %}
+    <div class="metric-item">
+      <div class="label">CPI</div>
+      <div class="value {% if cpi.value > 3 %}down{% elif cpi.value < 0 %}down{% else %}up{% endif %}">
+        {{ '%.1f'|format(cpi.value) }}%
+      </div>
+      <div class="item-meta">{{ cpi.date|default('')|truncate(10, True, '') }}</div>
+    </div>
+    {% endif %}
+
+    {% set pmi = d.pmi_manufacturing|default({}) %}
+    {% if pmi.value is not none %}
+    <div class="metric-item">
+      <div class="label">制造业PMI</div>
+      <div class="value {% if pmi.value > 50 %}up{% elif pmi.value < 49 %}down{% else %}flat{% endif %}">
+        {{ fmt_num(pmi.value, 1) }}
+      </div>
+      <div class="item-meta">{% if pmi.value > 50 %}扩张{% elif pmi.value < 50 %}收缩{% else %}持平{% endif %}</div>
+    </div>
+    {% endif %}
+
+    {% set pmi_nm = d.pmi_non_manufacturing|default({}) %}
+    {% if pmi_nm.value is not none %}
+    <div class="metric-item">
+      <div class="label">非制造业PMI</div>
+      <div class="value {% if pmi_nm.value > 50 %}up{% elif pmi_nm.value < 50 %}down{% else %}flat{% endif %}">
+        {{ fmt_num(pmi_nm.value, 1) }}
+      </div>
+    </div>
+    {% endif %}
+
+    {% set m2 = d.m2_yoy|default({}) %}
+    {% if m2.value is not none %}
+    <div class="metric-item">
+      <div class="label">M2同比</div>
+      <div class="value {% if m2.value > 10 %}up{% elif m2.value < 8 %}down{% else %}flat{% endif %}">
+        {{ '%.1f'|format(m2.value) }}%
+      </div>
+    </div>
+    {% endif %}
+
+    {% set lpr = d.lpr|default({}) %}
+    {% if lpr['1y'] is not none %}
+    <div class="metric-item">
+      <div class="label">LPR</div>
+      <div class="value" style="font-size:12px;">1Y {{ lpr['1y'] }}%</div>
+      <div class="item-meta">5Y {{ lpr['5y'] }}%</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div style="padding:8px 16px;font-size:12px;color:var(--text-secondary);border-top:1px solid var(--card-border);">
+    经济周期: <span class="accent">{{ d.cycle|default('--') }}</span>
+    {% if d.liquidity %} · 流动性: <span class="accent">{{ d.liquidity }}</span>{% endif %}
+  </div>
+
+  {% if d.signals or d.warnings %}
+  <div class="signals-wrap" style="border-top:1px solid var(--card-border);padding-top:10px;">
+    {% for s in d.signals|default([]) %}
+    <span class="signal-badge positive">✅ {{ s }}</span>
+    {% endfor %}
+    {% for w in d.warnings|default([]) %}
+    <span class="signal-badge warning">⚠️ {{ w }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ===== 4. 涨停复盘 ===== #}
+{% if e %}
+<div class="section">
+  <div class="section-title"><span class="icon">🔥</span> 涨停复盘 — {{ e.sentiment|default('未知') }}</div>
+
+  <div class="metric-grid cols-4">
+    <div class="metric-item">
+      <div class="label">涨停数</div>
+      <div class="value up">{{ e.zt_count|default(0) }}</div>
+    </div>
+    <div class="metric-item">
+      <div class="label">连板高度</div>
+      <div class="value accent">{{ e.max_height|default(0) }}板</div>
+    </div>
+    <div class="metric-item">
+      <div class="label">强势涨停</div>
+      <div class="value">{{ e.strong_count|default(0) }}只</div>
+    </div>
+    {% set cont = e.continuation|default({}) %}
+    {% if cont %}
+    <div class="metric-item">
+      <div class="label">昨日涨停今日</div>
+      <div class="value {{ pct_color(cont.avg_pct) }}">{{ fmt_pct(cont.avg_pct) }}</div>
+      <div class="item-meta">上涨{{ cont.up_ratio|default(0) }}%</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if e.max_height_stocks %}
+  <div style="padding:8px 16px;font-size:12px;color:var(--text-secondary);border-top:1px solid var(--card-border);">
+    🏆 {{ e.max_height }}连板: {{ e.max_height_stocks|join(', ') }}
+  </div>
+  {% endif %}
+
+  {% set dist = e.height_distribution|default({}) %}
+  {% if dist %}
+  <div style="padding:8px 16px;font-size:12px;color:var(--text-secondary);">
+    连板分布:
+    {% for h, cnt in dist|dictsort(reverse=true) %}
+    {{ h }}板×{{ cnt }}{% if not loop.last %} · {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% set sectors = e.hot_sectors|default({}) %}
+  {% if sectors %}
+  <div class="signals-wrap" style="border-top:1px solid var(--card-border);padding-top:10px;">
+    {% for name, cnt in sectors.items() %}
+    <span class="signal-badge info">🔥 {{ name }}({{ cnt }})</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if e.signals or e.warnings %}
+  <div class="signals-wrap" style="border-top:1px solid var(--card-border);padding-top:10px;">
+    {% for s in e.signals|default([]) %}
+    <span class="signal-badge positive">✅ {{ s }}</span>
+    {% endfor %}
+    {% for w in e.warnings|default([]) %}
+    <span class="signal-badge warning">⚠️ {{ w }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ===== FOOTER ===== #}
+<div class="footer">
+  Stock Analysis Pro · {{ data.get('date', '') }}<br>
+  数据仅供参考，不构成投资建议
+</div>
+{% endblock %}
